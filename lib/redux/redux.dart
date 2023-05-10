@@ -7,9 +7,9 @@ Store<AppState> store = Store<AppState>(
 
 class User {
   final Map<String, dynamic> profile;
-  final String accessToken;
+  final String accessToken, verifier, challenge;
 
-  User({this.profile = const {}, this.accessToken = ''});
+  User({this.profile = const {}, this.accessToken = '', this.verifier = '', this.challenge = ''});
 }
 class AppState {
   final User import, export;
@@ -56,6 +56,38 @@ AppState reducer(AppState state, dynamic action) {
           profile: (action as SetExportUserProfile).profile,
         ),
       );
+    case SetImportUserVerifier:
+      return AppState(
+        import: User(
+          verifier: (action as SetImportUserVerifier).verifier,
+          profile: state.import.profile,
+        ),
+        export: state.export,
+      );
+    case SetImportUserChallenge:
+      return AppState(
+        import: User(
+          challenge: (action as SetImportUserChallenge).challenge,
+          profile: state.import.profile,
+        ),
+        export: state.export,
+      );
+    case SetExportUserVerifier:
+      return AppState(
+        import: state.import,
+        export: User(
+          verifier: (action as SetExportUserVerifier).verifier,
+          profile: state.export.profile,
+        ),
+      );
+    case SetExportUserChallenge:
+      return AppState(
+        import: state.import,
+        export: User(
+          challenge: (action as SetExportUserChallenge).challenge,
+          profile: state.export.profile,
+        ),
+      );
     default:
       return state;
   }
@@ -83,4 +115,28 @@ class SetExportUserProfile {
   final Map<String, dynamic> profile;
 
   SetExportUserProfile(this.profile);
+}
+
+class SetImportUserVerifier {
+  final String verifier;
+
+  SetImportUserVerifier(this.verifier);
+}
+
+class SetImportUserChallenge {
+  final String challenge;
+
+  SetImportUserChallenge(this.challenge);
+}
+
+class SetExportUserVerifier {
+  final String verifier;
+
+  SetExportUserVerifier(this.verifier);
+}
+
+class SetExportUserChallenge {
+  final String challenge;
+
+  SetExportUserChallenge(this.challenge);
 }

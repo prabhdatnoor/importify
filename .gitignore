@@ -71,4 +71,4 @@ doc/api/
 .flutter-plugins
 .flutter-plugins-dependencies
 
-/config/env.yaml
+/assets/env.yaml

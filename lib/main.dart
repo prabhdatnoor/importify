@@ -1,6 +1,19 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:js';
 
-void main() {
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:importify/redux/redux.dart';
+import 'package:importify/spotify/connect.dart';
+import 'package:importify/utils/auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+var cfg = {};
+
+Future main() async {
+  await dotenv.load(fileName: "env.yaml");
   runApp(const MyApp());
 }
 
@@ -29,33 +42,84 @@ class MyApp extends StatelessWidget {
   }
 }
 
+enum UserType { import, export }
 
-// A card that displays the profile picture and name vertically
-// intially would disply a login button, after the user has logged in
-// it would display the profile picture and name
+// build login popup for spotify, tell it whether it's an import or export user
+Widget _buildLoginPopup(BuildContext context, UserType userType)  {
+  Uri requestUri = getSpotifyLoginUri(userType);
+  var spotifyLoginController = WebViewController()
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (NavigationRequest request) {
+          final uri = Uri.parse(request.url);
 
+          if (uri.host == 'REDIRECT_URI') {
+            // The URL matches the redirect URI, so we can extract the access token
+            final accessToken = uri.fragment
+                .split('&')
+                .firstWhere((element) => element.startsWith('access_token='))
+                .split('=')[1];
+
+            // store access token in redux store
+            setAccessToken(accessToken, userType);
+
+            // Close the login popup
+            Navigator.of(context).pop();
+
+            return NavigationDecision.prevent;
+          }
+          return NavigationDecision.navigate;
+        }))
+    ..loadRequest(requestUri);
+  return AlertDialog(
+    title: const Text('Login with Spotify'),
+    content: SizedBox(
+      height: 300,
+      child: WebViewWidget(controller: spotifyLoginController),
+    ),
+  );
+}
+
+// A profile card that shows the profile picture and name
+// if the redux state shows no one is logged in, ask the user to login
+// if the redux state shows someone is logged in, show their profile picture and name
 class ProfileCard extends StatelessWidget {
-  const ProfileCard({super.key});
+  final UserType userType;
+
+  const ProfileCard({super.key, required this.userType});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Container(
-        child: Column(
-          children: <Widget>[
-            // Name
-            ((a) => a ?  Image(image: NetworkImage('https://flutter.github.io/assets-for-api-docs/assets/widgets/owl.jpg')) : Text("anything but true"))(true),
-            const Text(
-              'Name',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+    return StoreConnector<AppState, AppState>(
+        converter: (store) => store.state,
+        builder: (context, state) {
+          var name = '';
+          var profilePicture = '';
+          bool isLoggedIn = true;
+
+          var profile = {};
+
+          var children = <Widget>[
+            Text(name),
+            Image.network(profilePicture),
+            // if logged in, show the more textbox
+            if (isLoggedIn) Text(const JsonEncoder().convert(profile)),
+          ];
+
+          return GestureDetector(
+            onTap: () {
+              // open up spotify login page and get access token to string
+              // Open webview to spotify login page
+              showDialog(
+                context: context,
+                builder: (context) => _buildLoginPopup(context, userType),
+              );
+            },
+            child: Column(
+              children: children,
             ),
-          ],
-        ),
-      ),
-    );
+          );
+        });
   }
 }
 
@@ -100,31 +164,30 @@ class _MyHomePageState extends State<MyHomePage> {
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return Scaffold(
+      // AppBar
+      appBar: AppBar(
+        title: Text(widget.title),
+      ),
 
-        // AppBar
-        appBar: AppBar(
-          title: Text(widget.title),
+      // Body
+      body: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          // widget that displays the profile picture and name
+          // shrink wrapped so that it doesn't take up the whole screen
+          children: const <Widget>[
+            ProfileCard(userType: UserType.import),
+            ProfileCard(userType: UserType.export),
+          ],
         ),
+      ),
 
-        // Body
-        body: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            // widget that displays the profile picture and name
-            // shrink wraped so that it doesn't take up the whole screen
-            children: const <Widget>[
-              ProfileCard(),
-              ProfileCard()
-            ],
-          ),
-        ),
-
-        // Floating Action Button
-        floatingActionButton: FloatingActionButton(
-          onPressed: _incrementCounter,
-          tooltip: 'Increment',
-          child: const Icon(Icons.add),
-        ), // This trailing comma makes auto-formatting nicer for build methods.
+      // Floating Action Button
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
