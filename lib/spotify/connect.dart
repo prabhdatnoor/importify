@@ -17,19 +17,15 @@ void setAccessToken(String accessToken, UserType userType){
   }
 }
 
-void getProfileDetails(UserType userType){
+Map<String, dynamic> getProfileDetails(UserType userType){
   switch (userType) {
     case UserType.import:
-      if (store.state.import.accessToken == '') {
-        throw Exception('Access token not set');
-      }
-      break;
+      // get profile details from redux
+      return store.state.import.profile;
     case UserType.export:
-      if (store.state.export.accessToken == '') {
-        throw Exception('Access token not set');
-      }
-      break;
+      return store.state.export.profile;
     default:
+      return {};
   }
 }
 
