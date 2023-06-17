@@ -8,7 +8,7 @@ import 'package:importify/redux/redux.dart';
 import 'package:importify/spotify/connect.dart';
 import 'package:importify/utils/auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:auth0_flutter/auth0_flutter.dart';
 
 var cfg = {};
 
@@ -21,63 +21,45 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   // This widget is the root of your application.
+  // wrap it in a store provider
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Importify',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+    return StoreProvider<AppState>(
+      store: store,
+      child: MaterialApp(
+        title: 'Importify',
+        theme: ThemeData(
+          // This is the theme of your application.
+          //
+          // Try running your application with "flutter run". You'll see the
+          // application has a blue toolbar. Then, without quitting the app, try
+          // changing the primarySwatch below to Colors.green and then invoke
+          // "hot reload" (press "r" in the console where you ran "flutter run",
+          // or simply save your changes to "hot reload" in a Flutter IDE).
+          // Notice that the counter didn't reset back to zero; the application
+          // is not restarted.
+          primarySwatch: Colors.blue,
+        ),
+        home: const MyHomePage(title: 'Flutter Demo Home Page'),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
 enum UserType { import, export }
 
-// build login popup for spotify, tell it whether it's an import or export user
-Widget _buildLoginPopup(BuildContext context, UserType userType)  {
-  Uri requestUri = getSpotifyLoginUri(userType);
-  var spotifyLoginController = WebViewController()
-    ..setJavaScriptMode(JavaScriptMode.unrestricted)
-    ..setNavigationDelegate(NavigationDelegate(
-        onNavigationRequest: (NavigationRequest request) {
-          final uri = Uri.parse(request.url);
+Future loginSpotifyWebsite(UserType userType) async {
+  var uri = getSpotifyLoginUri(userType);
 
-          if (uri.host == 'REDIRECT_URI') {
-            // The URL matches the redirect URI, so we can extract the access token
-            final accessToken = uri.fragment
-                .split('&')
-                .firstWhere((element) => element.startsWith('access_token='))
-                .split('=')[1];
+  // open spotify login page in new tab
+  // get domain and client id from config
 
-            // store access token in redux store
-            setAccessToken(accessToken, userType);
+  var auth0 = Auth0(uri.toString(), dotenv.env['client_id']!);
 
-            // Close the login popup
-            Navigator.of(context).pop();
+  final result = await auth0.webAuthentication(scheme: 'importify').login();
 
-            return NavigationDecision.prevent;
-          }
-          return NavigationDecision.navigate;
-        }))
-    ..loadRequest(requestUri);
-  return AlertDialog(
-    title: const Text('Login with Spotify'),
-    content: SizedBox(
-      height: 300,
-      child: WebViewWidget(controller: spotifyLoginController),
-    ),
-  );
+  // set access token in redux store
+  setAccessToken(result.accessToken, userType);
 }
 
 // A profile card that shows the profile picture and name
@@ -94,7 +76,7 @@ class ProfileCard extends StatelessWidget {
         converter: (store) => store.state,
         builder: (context, state) {
           var name = '';
-          var profilePicture = '';
+          var profilePicture = 'https://www.gravatar.com/avatar/205e460b479e2e5b48aec07710c08d50';
           bool isLoggedIn = true;
 
           var profile = {};
@@ -108,12 +90,7 @@ class ProfileCard extends StatelessWidget {
 
           return GestureDetector(
             onTap: () {
-              // open up spotify login page and get access token to string
-              // Open webview to spotify login page
-              showDialog(
-                context: context,
-                builder: (context) => _buildLoginPopup(context, userType),
-              );
+              loginSpotifyWebsite(userType);
             },
             child: Column(
               children: children,
